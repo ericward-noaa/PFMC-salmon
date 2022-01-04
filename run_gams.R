@@ -1,6 +1,9 @@
 library(tidyverse)
 library(readxl)
 library(mgcv)
+library(ggplot2)
+library(viridis)
+
 # process effort data
 ca_effort = readxl::read_xlsx("CA_effort.xlsx")
 ca_effort = pivot_longer(ca_effort, cols = 2:9, names_to = "Month")
@@ -56,5 +59,36 @@ fit2 <- gam(Landings ~ s(Year) + s(Code) +s(MonthN,k=4) +
               ti(Year,MonthN,k=4) + offset(log(Days)), 
            family = nb(), data = data)
 
+# make predictions
+df = expand.grid(Code = unique(data$Code),
+                 MonthN = 4:10,
+                 Year = unique(data$Year),
+                 Days = 10)
+df$pred = predict(fit2, df, type="response")
+df$cpue = df$pred / df$Days
+
+df = dplyr::left_join(df, codes)
+df$Port = factor(df$Port, levels = codes$Port)
+# make plot of a few time slices across ports
+
+jpeg("July_CPUE_byport.jpeg")
+ggplot(dplyr::filter(df, MonthN == 7,Year %in% seq(1975,2020,5)), aes(Port, cpue, group=Year,col=Year)) + 
+  geom_line() + 
+  theme_bw() + 
+  ylab("Predicted CPUE (July)") + 
+  scale_color_viridis(end=0.8) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+dev.off()
+
+jpeg("Seasonal_CPUE_byport.jpeg")
+ggplot(dplyr::filter(df,Year %in% seq(1975,2020,5)), aes(MonthN, cpue, group=Year,col=Year)) + 
+  geom_line() + 
+  theme_bw() + 
+  facet_wrap(~Port, scale="free_y") + 
+  ylab("Predicted CPUE") + 
+  xlab("Month") + 
+  scale_color_viridis(end=0.8) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+dev.off()
 
 
